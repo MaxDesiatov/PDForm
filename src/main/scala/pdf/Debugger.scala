@@ -1,8 +1,8 @@
 package pdf
 
-import org.apache.pdfbox.pdmodel._
-
 import org.apache.pdfbox.cos._
+import org.apache.pdfbox.pdmodel._
+import org.apache.pdfbox.persistence.util.COSObjectKey
 
 import java.io.File
 
@@ -15,6 +15,8 @@ import au.ken.treeview.Tree._
 import au.ken.treeview.event._
 
 import scalaj.collection.Imports._
+
+import xml._
 
 case class PDFTreeNode(var obj: COSBase) {
   def typeString = obj match {
@@ -36,21 +38,25 @@ case class PDFTreeNode(var obj: COSBase) {
     case _                => List()
   }
 
-  override def toString: String = obj match {
-    case o: COSObject     => o.toString
-    case d: COSDocument   => d.getHeaderString + "\n" +
-            new PDFTreeNode(d.getCatalog.getObject) + "\n" +
-            new PDFTreeNode(d.getTrailer)
-    case s: COSString     => "(" + s.getString + ")"
-    case a: COSArray      => "[" + a.toList.asScala.map(o => new PDFTreeNode(o).toString).mkString(" ") + "]"
-    case s: COSStream     => s.getStreamTokens.asScala mkString
-    case d: COSDictionary => "<<" + d.entrySet.asScala.map(e => new PDFTreeNode(e.getKey) + " " +
-              new PDFTreeNode(e.getValue)).mkString("\n") + ">>"
-    case b: COSBoolean    => b.getValue.toString
-    case n: COSName       => "/" + n.getName
-    case i: COSInteger    => i.intValue.toString
-    case n: COSNumber     => n.doubleValue.toString
-    case o                => o.toString
+  def toXml: NodeSeq = obj match {
+    case o: COSObject     =>
+      val num = o.getObjectNumber.intValue
+      val gen = o.getGenerationNumber.intValue
+      <a href={"http://" + num + "." + gen}>{num + " " + gen + " R"}</a>
+    case d: COSDocument   => <div>{d.getHeaderString}</div>
+            <div>{new PDFTreeNode(d.getCatalog.getObject).toXml}</div>
+            <div>{new PDFTreeNode(d.getTrailer).toXml}</div>
+    case s: COSString     => <node>{"(" + s.getString + ")"}</node>
+    case a: COSArray      => <node>{"["}{a.toList.asScala.map(o => <node>{new PDFTreeNode(o).toXml}&nbsp;</node>)
+      }{"]"}</node>
+    case s: COSStream     => <node>{s.getStreamTokens.asScala}</node>
+    case d: COSDictionary => <node>{"<<"}{d.entrySet.asScala.map(e => <div>{new PDFTreeNode(e.getKey).toXml}&nbsp;
+      {new PDFTreeNode(e.getValue).toXml}</div>)}{">>"}</node>
+    case b: COSBoolean    => <node>{b.getValue}</node>
+    case n: COSName       => <node>{"/" + n.getName}</node>
+    case i: COSInteger    => <node>{i.intValue}</node>
+    case n: COSNumber     => <node>{n.doubleValue}</node>
+    case o                => <node>{o}</node>
   }
 }
 
@@ -61,13 +67,11 @@ object Debugger extends SimpleSwingApplication {
     title = "PDFDebugger"
     menuBar = new MenuBar
 
-    val displayWidget = new EditorPane() {//"text/html", "") {
+    val displayWidget = new EditorPane ("text/html", "") {
       editable = false
       peer.addHyperlinkListener(new HyperlinkListener() {
-        def hyperlinkUpdate(ev: HyperlinkEvent) {
-          if (ev.getEventType() == HyperlinkEvent.EventType.ACTIVATED)
-            peer.setPage(ev.getURL())
-        }
+        def hyperlinkUpdate(ev: HyperlinkEvent) =
+          if (ev.getEventType() == HyperlinkEvent.EventType.ACTIVATED) openObjectLink(ev)
       })
     }
 
@@ -76,7 +80,7 @@ object Debugger extends SimpleSwingApplication {
       doc = PDDocument.load(f)
       val rootNode = new PDFTreeNode(doc.getDocument)
       tree.treeData = new TreeModel[PDFTreeNode](List(rootNode), _.children)
-      displayWidget.text = rootNode.toString
+      displayWidget.text = rootNode.toXml.toString
     }
     val fileMenu = new Menu("File")
     fileMenu.contents ++= List(new MenuItem(Action("Open...") {
@@ -97,12 +101,19 @@ object Debugger extends SimpleSwingApplication {
         case TreePathSelected(_, _, _, newSelection, _) =>
           displayWidget.text = {
             val maybeLast = newSelection.getOrElse(List()).lastOption
-            maybeLast.map(n => n.asInstanceOf[PDFTreeNode].toString) getOrElse ""
+            maybeLast.map(n => n.asInstanceOf[PDFTreeNode].toXml.toString) getOrElse ""
           }
       }
     }
 
     tree.expandAll
+
+    def openObjectLink(ev: HyperlinkEvent) {
+      tree.selectPaths()
+      val num :: gen :: _ = "http://".r.replaceAllIn(ev.getURL.toString, "").split('.').toList
+      val obj = doc.getDocument.getObjectFromPool(new COSObjectKey(num.toLong, gen.toLong))
+      displayWidget.text = new PDFTreeNode(obj.getObject).toXml.toString
+    }
 
     val mainPanel = new BoxPanel(Orientation.Vertical)
     val centralPanel = new SplitPane(Orientation.Vertical,
