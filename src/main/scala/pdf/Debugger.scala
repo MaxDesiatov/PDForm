@@ -8,6 +8,9 @@ import java.io.File
 
 import swing._
 
+import java.awt.event.KeyEvent
+import java.awt.Toolkit
+
 import javax.swing.event.{HyperlinkListener, HyperlinkEvent}
 
 import au.ken.treeview._
@@ -17,6 +20,7 @@ import au.ken.treeview.event._
 import scalaj.collection.Imports._
 
 import xml._
+import javax.swing.{UIManager, KeyStroke}
 
 case class COSXRefTable(table: java.util.Map[COSObjectKey, Integer]) extends COSBase {
   override def accept(notUsed: ICOSVisitor) = None // needed in COSBase
@@ -70,6 +74,7 @@ object Debugger extends SimpleSwingApplication {
   def top = new MainFrame {
     title = "PDForm"
     menuBar = new MenuBar
+    minimumSize = new Dimension(800, 600)
 
     val displayWidget = new EditorPane ("text/html", "") {
       editable = false
@@ -93,7 +98,10 @@ object Debugger extends SimpleSwingApplication {
         val chooser = new FileChooser
         if (FileChooser.Result.Approve == chooser.showOpenDialog(contents(0)))
           readPDFFile(chooser.selectedFile)
-      }),
+      }) {
+        val key = KeyStroke.getKeyStroke(KeyEvent.VK_O, Toolkit.getDefaultToolkit().getMenuShortcutKeyMask())
+        peer.setAccelerator(key)
+      },
       new MenuItem(Action("Exit") {quit()})
       )
     menuBar.contents += fileMenu
@@ -123,9 +131,17 @@ object Debugger extends SimpleSwingApplication {
     val mainPanel = new BoxPanel(Orientation.Vertical)
     val centralPanel = new SplitPane(Orientation.Vertical,
       new ScrollPane(tree),
-      new ScrollPane(displayWidget))
+      new ScrollPane(displayWidget)) { dividerLocation = 200 }
     val statusPanel = new Label("this is a statusbar")
     mainPanel.contents ++= List(centralPanel, statusPanel)
     contents = mainPanel
+  }
+
+  override def main(args: Array[String]) = {
+    System.setProperty("Quaqua.tabLayoutPolicy", "wrap")
+    UIManager.setLookAndFeel(ch.randelshofer.quaqua.QuaquaManager.getLookAndFeel())
+    Swing.onEDT {
+      startup(args)
+    }
   }
 }
