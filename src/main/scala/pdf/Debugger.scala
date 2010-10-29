@@ -11,6 +11,7 @@ import swing._
 import java.awt.event.KeyEvent
 import java.awt.Toolkit
 
+import javax.swing.{UIManager, KeyStroke}
 import javax.swing.event.{HyperlinkListener, HyperlinkEvent}
 
 import au.ken.treeview._
@@ -20,7 +21,6 @@ import au.ken.treeview.event._
 import collection.JavaConversions._
 
 import xml._
-import javax.swing.{UIManager, KeyStroke}
 
 case class COSXRefTable(table: java.util.Map[COSObjectKey, Integer]) extends COSBase {
   override def accept(notUsed: ICOSVisitor) = None // needed in COSBase
@@ -139,8 +139,13 @@ object Debugger extends SimpleSwingApplication {
   }
 
   override def main(args: Array[String]) = {
-    System.setProperty("Quaqua.tabLayoutPolicy", "wrap")
-    UIManager.setLookAndFeel(ch.randelshofer.quaqua.QuaquaManager.getLookAndFeel())
+    if ("""Windows""".r.findFirstIn(System.getProperty("os.name")).isEmpty) {
+        System.setProperty("Quaqua.tabLayoutPolicy", "wrap")
+        UIManager.setLookAndFeel(ch.randelshofer.quaqua.QuaquaManager.getLookAndFeel())
+      }
+    else
+      UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName())
+
     Swing.onEDT {
       startup(args)
     }
