@@ -17,7 +17,7 @@ import au.ken.treeview._
 import au.ken.treeview.Tree._
 import au.ken.treeview.event._
 
-import scalaj.collection.Imports._
+import collection.JavaConversions._
 
 import xml._
 import javax.swing.{UIManager, KeyStroke}
@@ -52,17 +52,18 @@ case class PDFTreeNode(obj: COSBase) {
       case o: COSObject     => obj2link(o.getObjectNumber.intValue, o.getGenerationNumber.intValue)
       case d: COSDocument   => <div>{d.getHeaderString}</div>
       case s: COSString     => <node>{"(" + s.getString + ")"}</node>
-      case a: COSArray      => <node>{"["}{a.toList.asScala.map(o => <node>{PDFTreeNode(o).toXml}&nbsp;</node>)
+      case a: COSArray      => <node>{"["}{a.toList.map(o => <node>{PDFTreeNode(o).toXml}&nbsp;</node>)
         }{"]"}</node>
-      case s: COSStream     => <node>{s.getStreamTokens.asScala}</node>
-      case d: COSDictionary => <node>{"<<"}{d.entrySet.asScala.map(e => <div>{PDFTreeNode(e.getKey).toXml}&nbsp;
+      case s: COSStream     => <node>{s.getStreamTokens}</node>
+      case d: COSDictionary => <node>{"<<"}{d.entrySet.map(e => <div>{PDFTreeNode(e.getKey).toXml}&nbsp;
         {PDFTreeNode(e.getValue).toXml}</div>)}{">>"}</node>
       case b: COSBoolean    => <node>{b.getValue}</node>
       case n: COSName       => <node>{"/" + n.getName}</node>
       case i: COSInteger    => <node>{i.intValue}</node>
       case n: COSNumber     => <node>{n.doubleValue}</node>
-      case x: COSXRefTable  => <node>{for ((k, v) <- x.table.asScala)
+      case x: COSXRefTable  => <node>{for ((k, v) <- x.table)
                                       yield <div>{obj2link(k.getNumber, k.getGeneration)}={v}</div>}</node>
+      case n: COSNull       => <node>null</node>
       case o                => <node>{o}</node>
     }
   }
