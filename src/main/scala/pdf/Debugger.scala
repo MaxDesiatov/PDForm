@@ -26,22 +26,18 @@ case class COSXRefTable(table: java.util.Map[COSObjectKey, Integer]) extends COS
   override def accept(notUsed: ICOSVisitor) = None // needed in COSBase
 }
 
-case class PDFTreeNode(obj: COSBase) {
+object PDFTreeNode {
+  val empty = PDFTreeNode(COSNull.NULL)
+}
+
+case class PDFTreeNode(obj: COSBase,
+                       var children: List[PDFTreeNode] = List(),
+                       number: Option[Long] = None,
+                       generation: Option[Long] = None) {
   def typeString: String = {
     val ClassName = """.*\.COS(\w+)""".r
     val ClassName(n) = obj.getClass.getName
     n
-  }
-
-  def children: Seq[PDFTreeNode] = obj match {
-    case d: COSDocument   =>
-      val baseChildren = List(PDFTreeNode(d.getCatalog.getObject),
-        PDFTreeNode(d.getTrailer),
-        PDFTreeNode(COSXRefTable(d.getXrefTable)))
-      if (d.isEncrypted)
-        PDFTreeNode(d.getEncryptionDictionary) :: baseChildren
-        baseChildren
-    case _                => List()
   }
 
   def toXml: NodeSeq = {
@@ -71,24 +67,38 @@ case class PDFTreeNode(obj: COSBase) {
 
 object Debugger extends SimpleSwingApplication {
   var doc = new PDDocument
+  var rootNode = PDFTreeNode.empty
+  var currNode = PDFTreeNode.empty
 
   def top = new MainFrame {
     title = "PDForm"
     menuBar = new MenuBar
     minimumSize = new Dimension(800, 600)
 
+    val displayScrollPane = new ScrollPane {
+      verticalScrollBarPolicy = ScrollPane.BarPolicy.Always
+    }
     val displayWidget = new EditorPane ("text/html", "") {
       editable = false
       peer.addHyperlinkListener(new HyperlinkListener() {
         def hyperlinkUpdate(ev: HyperlinkEvent) =
-          if (ev.getEventType() == HyperlinkEvent.EventType.ACTIVATED) openObjectLink(ev)
+          if (ev.getEventType() == HyperlinkEvent.EventType.ACTIVATED)
+            openObjectLink(ev)
       })
     }
 
     def readPDFFile(f: File): Unit = {
       doc.close()
       doc = PDDocument.load(f)
-      val rootNode = PDFTreeNode(doc.getDocument)
+      val docObj = doc.getDocument
+      rootNode = PDFTreeNode(docObj)
+      val baseChildren = List(PDFTreeNode(docObj.getCatalog.getObject),
+        PDFTreeNode(docObj.getTrailer),
+        PDFTreeNode(COSXRefTable(docObj.getXrefTable)))
+      rootNode.children = if (docObj.isEncrypted)
+                            PDFTreeNode(docObj.getEncryptionDictionary) :: baseChildren
+                          else
+                            baseChildren
       tree.treeData = new TreeModel[PDFTreeNode](List(rootNode), _.children)
       displayWidget.text = rootNode.toXml.toString
       tree.expandAll
@@ -113,26 +123,36 @@ object Debugger extends SimpleSwingApplication {
       listenTo(selection)//, mouse.clicks) //editor, selection, mouse.clicks)
 
       reactions += {
-        case TreePathSelected(_, _, _, newSelection, _) =>
+        case TreePathSelected(_, _, _, newSelection, _) =>       
           displayWidget.text = {
-            val maybeLast = newSelection.getOrElse(List()).lastOption
-            maybeLast.map(n => n.asInstanceOf[PDFTreeNode].toXml.toString) getOrElse ""
+            val maybeLast = newSelection.getOrElse(List()).lastOption.asInstanceOf[Option[PDFTreeNode]]
+            currNode = maybeLast getOrElse PDFTreeNode.empty
+            maybeLast.map(n => n.toXml.toString) getOrElse ""
           }
       }
     }
 
     def openObjectLink(ev: HyperlinkEvent) {
-      tree.selectPaths()
       val NumGen = """http://(\d+)\.(\d+)""".r
-      val NumGen(num, gen) = ev.getURL.toString
-      val obj = doc.getDocument.getObjectFromPool(new COSObjectKey(num.toLong, gen.toLong))
-      displayWidget.text = PDFTreeNode(obj.getObject).toXml.toString
+      val NumGen(numStr, genStr) = ev.getURL.toString
+      val (num, gen) = (numStr.toLong, genStr.toLong)
+      val obj = PDFTreeNode(doc.getDocument.getObjectFromPool(new COSObjectKey(num, gen)).getObject,
+                            number = Some(num),
+                            generation = Some(gen))
+      currNode.children ::= obj
+      val oldSelection = tree.selection.rows.minSelection
+      tree.treeData = new TreeModel[PDFTreeNode](List(rootNode), _.children)
+//      displayWidget.text = oldSelection.toString//obj.toXml.toString
+      tree.expandAll
+      currNode = obj
+      tree.selectRows(oldSelection + 1)
     }
 
     val mainPanel = new BoxPanel(Orientation.Vertical)
+    displayScrollPane.contents = displayWidget
     val centralPanel = new SplitPane(Orientation.Vertical,
       new ScrollPane(tree),
-      new ScrollPane(displayWidget)) { dividerLocation = 200 }
+      displayScrollPane) { dividerLocation = 200 }
     val statusPanel = new Label("this is a statusbar")
     mainPanel.contents ++= List(centralPanel, statusPanel)
     contents = mainPanel
@@ -151,3 +171,4 @@ object Debugger extends SimpleSwingApplication {
     }
   }
 }
+  
