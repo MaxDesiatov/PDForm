@@ -26,6 +26,7 @@ case class COSXRefTable(table: java.util.Map[COSObjectKey, Integer]) extends COS
 
 object PDFTreeNode {
   val empty = PDFTreeNode(COSNull.NULL)
+  implicit def COSBase2PDFTreeNode(cos: COSBase): PDFTreeNode = PDFTreeNode(cos)
 }
 
 case class PDFTreeNode(obj: COSBase,
@@ -37,18 +38,19 @@ case class PDFTreeNode(obj: COSBase,
   }
 
   def toXml: NodeSeq = {
+    import PDFTreeNode._
     def obj2link(num: Long, gen: Long): NodeSeq =
       <a href={"http://" + num + "." + gen}>{num + " " + gen + " R"}</a>
 
     def dict2xml: NodeSeq =
-      <node>{"<<"}{obj.asInstanceOf[COSDictionary].entrySet.map(e => <div>{PDFTreeNode(e.getKey).toXml}&nbsp;
-        {PDFTreeNode(e.getValue).toXml}</div>)}{">>"}</node>
+      <node>{"<<"}{obj.asInstanceOf[COSDictionary].entrySet.
+              map(e => <div>{e.getKey.toXml}&nbsp;{e.getValue.toXml}</div>)}{">>"}</node>
 
     obj match {
       case o: COSObject     => obj2link(o.getObjectNumber.intValue, o.getGenerationNumber.intValue)
       case d: COSDocument   => <div>{d.getHeaderString}</div>
       case s: COSString     => <node>{"(" + s.getString + ")"}</node>
-      case a: COSArray      => <node>{"["}{a.toList.map(o => <node>{PDFTreeNode(o).toXml}&nbsp;</node>)}{"]"}
+      case a: COSArray      => <node>{"["}{a.toList.map(o => <node>{o.toXml}&nbsp;</node>)}{"]"}
                               </node>
       case s: COSStream     => dict2xml ++ <node><div>stream</div>{s.getStreamTokens}<div>endstream</div></node>
       case d: COSDictionary => dict2xml
@@ -91,12 +93,12 @@ object Debugger extends SimpleSwingApplication {
       doc.close()
       doc = PDDocument.load(f)
       val docObj = doc.getDocument
-      rootNode = PDFTreeNode(docObj)
-      val baseChildren = List(PDFTreeNode(docObj.getCatalog.getObject),
-                              PDFTreeNode(docObj.getTrailer),
-                              PDFTreeNode(COSXRefTable(docObj.getXrefTable)))
+      rootNode = docObj
+      val baseChildren: List[PDFTreeNode] = List(docObj.getCatalog.getObject,
+                                                 docObj.getTrailer,
+                                                 COSXRefTable(docObj.getXrefTable))
       rootNode.children = if (docObj.isEncrypted)
-                            PDFTreeNode(docObj.getEncryptionDictionary) :: baseChildren
+                            docObj.getEncryptionDictionary :: baseChildren
                           else
                             baseChildren
       tree.treeData = new TreeModel[PDFTreeNode](List(rootNode), _.children)
@@ -136,7 +138,7 @@ object Debugger extends SimpleSwingApplication {
       val NumGen(numStr, genStr) = ev.getURL.toString
       val (num, gen) = (numStr.toLong, genStr.toLong)
       val newPath = objCache.getOrElse((num, gen), {
-        val obj = PDFTreeNode(doc.getDocument.getObjectFromPool(new COSObjectKey(num, gen)).getObject)
+        val obj: PDFTreeNode = doc.getDocument.getObjectFromPool(new COSObjectKey(num, gen)).getObject
         currNode.children ::= obj
         currNode = obj
         val sel = tree.treePathToPath(tree.selection.paths.leadSelection) :+ obj
