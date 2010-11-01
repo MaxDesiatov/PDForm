@@ -8,6 +8,7 @@ import java.io.File
 
 import swing._
 import event._
+import Tree._
 
 import java.awt.event.KeyEvent
 import java.awt.Toolkit
@@ -28,9 +29,7 @@ object PDFTreeNode {
 }
 
 case class PDFTreeNode(obj: COSBase,
-                       var children: List[PDFTreeNode] = List(),
-                       number: Option[Long] = None,
-                       generation: Option[Long] = None) {
+                       var children: List[PDFTreeNode] = List()) {
   override def toString: String = {
     val ClassName = """.*\.COS(\w+)""".r
     val ClassName(n) = obj.getClass.getName
@@ -66,6 +65,7 @@ object Debugger extends SimpleSwingApplication {
   var doc = new PDDocument
   var rootNode = PDFTreeNode.empty
   var currNode = PDFTreeNode.empty
+  var objCache = Map.empty[(Long, Long), Path[PDFTreeNode]]
 
   def top = new MainFrame {
     title = "PDForm"
@@ -131,23 +131,26 @@ object Debugger extends SimpleSwingApplication {
       val NumGen = """http://(\d+)\.(\d+)""".r
       val NumGen(numStr, genStr) = ev.getURL.toString
       val (num, gen) = (numStr.toLong, genStr.toLong)
-      val obj = PDFTreeNode(doc.getDocument.getObjectFromPool(new COSObjectKey(num, gen)).getObject,
-                            number = Some(num),
-                            generation = Some(gen))
-      currNode.children ::= obj
-      val oldSelection = tree.selection.rows.minSelection
-      tree.treeData = new TreeModel[PDFTreeNode](List(rootNode), _.children)
-//      displayWidget.text = oldSelection.toString//obj.toXml.toString
+      val newPath = objCache.getOrElse((num, gen), {
+        val obj = PDFTreeNode(doc.getDocument.getObjectFromPool(new COSObjectKey(num, gen)).getObject)
+        currNode.children ::= obj
+        currNode = obj
+        val sel = tree.treePathToPath(tree.selection.paths.leadSelection) :+ obj
+        tree.treeData = new TreeModel[PDFTreeNode](List(rootNode), _.children)
+        objCache += (num, gen) -> sel
+        sel
+      })
       tree.expandAll
-      currNode = obj
-      tree.selectRows(oldSelection + 1)
+      tree.selectPaths(newPath)
     }
 
     val mainPanel = new BoxPanel(Orientation.Vertical)
     displayScrollPane.contents = displayWidget
     val centralPanel = new SplitPane(Orientation.Vertical,
-      new ScrollPane(tree),
-      displayScrollPane) { dividerLocation = 200 }
+                                     new ScrollPane(tree),
+                                     displayScrollPane) {
+      dividerLocation = 200
+    }
     val statusPanel = new Label("this is a statusbar")
     mainPanel.contents ++= List(centralPanel, statusPanel)
     contents = mainPanel
