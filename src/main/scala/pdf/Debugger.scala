@@ -7,16 +7,13 @@ import org.apache.pdfbox.persistence.util.COSObjectKey
 import java.io.File
 
 import swing._
+import event._
 
 import java.awt.event.KeyEvent
 import java.awt.Toolkit
 
 import javax.swing.{UIManager, KeyStroke}
 import javax.swing.event.{HyperlinkListener, HyperlinkEvent}
-
-import au.ken.treeview._
-import au.ken.treeview.Tree._
-import au.ken.treeview.event._
 
 import collection.JavaConversions._
 
@@ -34,7 +31,7 @@ case class PDFTreeNode(obj: COSBase,
                        var children: List[PDFTreeNode] = List(),
                        number: Option[Long] = None,
                        generation: Option[Long] = None) {
-  def typeString: String = {
+  override def toString: String = {
     val ClassName = """.*\.COS(\w+)""".r
     val ClassName(n) = obj.getClass.getName
     n
@@ -118,8 +115,6 @@ object Debugger extends SimpleSwingApplication {
     menuBar.contents += fileMenu
 
     lazy val tree = new Tree[PDFTreeNode] {
-      renderer = Renderer(_.typeString)
-
       listenTo(selection)//, mouse.clicks) //editor, selection, mouse.clicks)
 
       reactions += {
