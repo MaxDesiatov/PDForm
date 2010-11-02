@@ -4,7 +4,6 @@ import org.apache.pdfbox.cos._
 import org.apache.pdfbox.pdmodel._
 import org.apache.pdfbox.persistence.util.COSObjectKey
 import org.apache.pdfbox.util.{ExtensionFileFilter, PDFOperator}
-import org.apache.pdfbox.pdfviewer.PDFPagePanel
 
 import java.io.File
 
@@ -82,6 +81,15 @@ case class PDFTreeNode(obj: COSBase,
   }
 
   def toXml: NodeSeq = PDFTreeNode.token2xml(obj)
+
+  def isPage: Boolean = obj match {
+    case d: COSDictionary =>
+      d.getDictionaryObject("Type") match {
+        case n: COSName => n.getName == "Page"
+        case _          => false
+      }
+    case _                => false
+  }
 }
 
 object Debugger extends SimpleSwingApplication {
@@ -104,6 +112,8 @@ object Debugger extends SimpleSwingApplication {
             openObjectLink(ev)
       })
     }
+    val renderScrollPane = new ScrollPane
+    val renderWidget = new PDFPagePanel
     val statusLabel = new Label
 
     def readPDFFile(f: File): Unit = {
@@ -122,6 +132,8 @@ object Debugger extends SimpleSwingApplication {
       tree.treeData = new TreeModel[PDFTreeNode](List(rootNode), _.children)
       tree.expandAll
       tree.selectRows(0)
+      renderWidget.emptyPage()
+      renderWidget.repaint()
     }
 
     val fileMenu = new Menu("File")
@@ -149,6 +161,10 @@ object Debugger extends SimpleSwingApplication {
           displayWidget.text = maybeLast.map(n => n.toXml.toString) getOrElse ""
           displayWidget.peer.select(0, 0)
           statusLabel.text = maybeLast.map(_.description) getOrElse ""
+          if (currNode.isPage) {
+            renderWidget.setPage(new PDPage(currNode.obj.asInstanceOf[COSDictionary]))
+            renderWidget.repaint()
+          }
       }
     }
 
@@ -172,9 +188,14 @@ object Debugger extends SimpleSwingApplication {
 
     val mainPanel = new BoxPanel(Orientation.Vertical)
     displayScrollPane.contents = displayWidget
+    renderScrollPane.contents = renderWidget
     val centralPanel = new SplitPane(Orientation.Vertical,
                                      new ScrollPane(tree),
-                                     displayScrollPane) {
+                                     new SplitPane(Orientation.Vertical,
+                                                   displayScrollPane,
+                                                   renderScrollPane) {
+                                       dividerLocation = 400
+                                     }) {
       dividerLocation = 200
     }
     mainPanel.contents ++= List(centralPanel, statusLabel)
