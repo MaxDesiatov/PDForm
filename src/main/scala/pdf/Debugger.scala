@@ -2,8 +2,9 @@ package pdf
 
 import org.apache.pdfbox.cos._
 import org.apache.pdfbox.pdmodel._
-import org.apache.pdfbox.util.PDFOperator
 import org.apache.pdfbox.persistence.util.COSObjectKey
+import org.apache.pdfbox.util.{ExtensionFileFilter, PDFOperator}
+
 import java.io.File
 
 import swing._
@@ -16,11 +17,12 @@ import java.awt.Toolkit
 import javax.swing.{UIManager, KeyStroke}
 import javax.swing.event.{HyperlinkListener, HyperlinkEvent}
 
+import collection.mutable
 import collection.JavaConversions._
 
 import xml._
 
-case class COSXRefTable(table: java.util.Map[COSObjectKey, Integer]) extends COSBase {
+case class COSXRefTable(table: mutable.Map[COSObjectKey, java.lang.Integer]) extends COSBase {
   override def accept(notUsed: ICOSVisitor) = None // needed in COSBase
 }
 
@@ -121,6 +123,8 @@ object Debugger extends SimpleSwingApplication {
     val fileMenu = new Menu("File")
     fileMenu.contents ++= List(new MenuItem(Action("Open...") {
         val chooser = new FileChooser
+        var pdfFilter = new ExtensionFileFilter(Array("PDF"), "PDF Files")
+        chooser.peer.setFileFilter(pdfFilter)
         if (FileChooser.Result.Approve == chooser.showOpenDialog(contents(0)))
           readPDFFile(chooser.selectedFile)
       }) {
