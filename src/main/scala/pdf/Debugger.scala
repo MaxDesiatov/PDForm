@@ -41,27 +41,28 @@ object PDFTreeNode {
       <a href={"http://" + num + "." + gen}>{num + " " + gen + " R"}</a>
 
     def dict2xml(d: COSDictionary): NodeSeq =
-      <node>{"<<"}{d.asInstanceOf[COSDictionary].entrySet.
-              map(e => <div>{e.getKey.toXml}&nbsp;{e.getValue.toXml}</div>)}{">>"}</node>
+      Text("<<") ++ d.asInstanceOf[COSDictionary].entrySet.
+              map(e => <div>{e.getKey.toXml}&nbsp;{e.getValue.toXml}</div>) ++ Text(">>")
 
     t match {
       case o: COSObject     => obj2link(o.getObjectNumber.intValue, o.getGenerationNumber.intValue)
-      case d: COSDocument   => <div>{d.getHeaderString}</div>
-      case s: COSString     => <node>{"(" + s.getString + ")"}</node>
-      case a: COSArray      => <node>{"["}{a.toList.map(o => <node>{o.toXml}&nbsp;</node>)}{"]"}
-                              </node>
+      case d: COSDocument   => Text(d.getHeaderString)
+      case s: COSString     => Text("(" + s.getString + ")")
+      case a: COSArray      => Text("[") ++ a.toList.map(o => o.toXml ++ Text(" ")).flatten ++ Text("]")
       case s: COSStream     => dict2xml(s) ++
-              <node><div>stream</div>{time(s.getStreamTokens.map(t => <node>{token2xml(t)}&nbsp;</node>).toString)}<div>endstream</div></node>
+              <div>stream</div> ++ s.getStreamTokens.map(t => token2xml(t) ++ Text(" ")).flatten ++ <div>endstream</div>
       case d: COSDictionary => dict2xml(d)
-      case b: COSBoolean    => <node>{b.getValue}</node>
-      case n: COSName       => <node>{"/" + n.getName}</node>
-      case i: COSInteger    => <node>{i.intValue}</node>
-      case n: COSNumber     => <node>{n.doubleValue}</node>
-      case x: COSXRefTable  => <node>{for ((k, v) <- x.table)
-                                      yield <div>{obj2link(k.getNumber, k.getGeneration)}={v}</div>}</node>
-      case n: COSNull       => <node>null</node>
-      case o: PDFOperator   => <node>{o.getOperation}</node>
-      case o                => <node>{o}</node>
+      case b: COSBoolean    => Text(b.getValue.toString)
+      case n: COSName       => Text("/" + n.getName)
+      case i: COSInteger    => Text(i.intValue.toString)
+      case n: COSNumber     => Text(n.doubleValue.toString)
+      case x: COSXRefTable  => var res = NodeSeq.Empty
+                               for ((k, v) <- x.table)
+                                 res ++= <div>{obj2link(k.getNumber, k.getGeneration)}={v}</div>
+                               res
+      case n: COSNull       => Text("null")
+      case o: PDFOperator   => Text(o.getOperation)
+      case o                => Text(o.toString)
     }
   }
 }
