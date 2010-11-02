@@ -8,11 +8,11 @@ it isn't clearly possible to integrate some Scala code in pure Java project.
 
 ## Building
 
-If you haven't done it, setup sbt as described in http://code.google.com/p/simple-build-tool/wiki/Setup
+If you haven't done it, setup sbt as described in <http://code.google.com/p/simple-build-tool/wiki/Setup>
 
 Then do this in PDForm's root directory
 
     sbt update run
 
 After that in most cases you'll see PDForm running.  If not, report this as PDForm issue at
-http://github.com/explicitcall/PDForm/issues
+<http://github.com/explicitcall/PDForm/issues>
