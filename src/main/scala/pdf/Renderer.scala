@@ -30,6 +30,6 @@ class PDFPagePanel extends Panel {
       g.setColor(background)
       g.fillRect(0, 0, size.width, size.height)
       drawer.drawPage(g, page.get, pageDimension.get)
-    } else emptyPage()
+    }
   }
 }
