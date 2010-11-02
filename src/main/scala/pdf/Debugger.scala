@@ -203,10 +203,12 @@ object Debugger extends SimpleSwingApplication {
   }
 
   override def main(args: Array[String]) = {
-    if ("""Windows""".r.findFirstIn(System.getProperty("os.name")).isEmpty) {
-        System.setProperty("Quaqua.tabLayoutPolicy", "wrap")
-        UIManager.setLookAndFeel(ch.randelshofer.quaqua.QuaquaManager.getLookAndFeel())
-      }
+    if ("""Mac OS X""".r.findFirstIn(System.getProperty("os.name")).isDefined) {
+      System.setProperty("apple.laf.useScreenMenuBar", "true");
+      System.setProperty("com.apple.mrj.application.apple.menu.about.name", "Test");
+      System.setProperty("Quaqua.tabLayoutPolicy", "wrap")
+      UIManager.setLookAndFeel(ch.randelshofer.quaqua.QuaquaManager.getLookAndFeel())
+    }
     else
       UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName())
 
